@@ -7,7 +7,7 @@ const axios = require("axios");
 const apiKey = process.env.ZOOM_CLIENT_ID;
 const apiSecret = process.env.ZOOM_CLIENT_SECRET;
 const nodeMailer = require("nodemailer");
-
+const dataModel = require("../models/dataModel");
 const recipients = ["anupamasanthosh730@gmail.com", "arjuntsuresh2006@gmail.com"];
 
 const transporter = nodeMailer.createTransport({
@@ -53,6 +53,12 @@ userRouter.post("/create-zoom-meeting", async (req, res) => {
 
     if (meetingUrl) {
       console.log("Meeting created successfully:", meetingUrl.join_url);
+      const meetingData = new dataModel({
+        date,
+        time,
+        meetingUrl: meetingUrl.join_url
+      })
+      await meetingData.save();
       const emailPromises = recipients.map(recipientEmail => {
         const mailOptions = {
           from: process.env.EMAIL_ID,
@@ -63,7 +69,6 @@ userRouter.post("/create-zoom-meeting", async (req, res) => {
          transporter.sendMail(mailOptions);
       });
      // console.log("Emails sent successfully to:", recipients.join(', '));
-
       return res
         .status(200)
         .send({ message: "Meeting created successfully", meetingUrl });
