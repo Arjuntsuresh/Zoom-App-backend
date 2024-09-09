@@ -32,6 +32,8 @@ const createZoomMeeting = async (accessToken, meetingDate, meetingTime) => {
     });
     const responseText = await response.text();
     const data = JSON.parse(responseText);
+    console.log(data);
+    
     return data;
   } catch (error) {
     console.error("Error creating Zoom meeting:", error.message);
