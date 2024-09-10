@@ -1,8 +1,14 @@
 const axios = require("axios");
 require("dotenv").config();
 
-const createZoomMeeting = async (accessToken, meetingDate, meetingTime) => {
+const durationToSeconds = (duration) => {
+  const [hours, minutes] = duration.split(':').map(Number);
+  return (hours * 3600) + (minutes * 60);
+};
+
+const createZoomMeeting = async (accessToken, meetingDate, meetingTime,topic,duration) => {
   try {
+    const durationInSeconds = durationToSeconds(duration);
     const url = "https://api.zoom.us/v2/users/me/meetings";
     const meetingDateTime = new Date(
       `${meetingDate}T${meetingTime}:00Z`
@@ -12,11 +18,11 @@ const createZoomMeeting = async (accessToken, meetingDate, meetingTime) => {
       "Content-Type": "application/json",
     };
     const meetingDetails = {
-      topic: "Zoom-meeting",
+      topic: topic,
       type: 2,
       start_time: meetingDateTime,
-      duration: 60,
-      timezone: "UTC",
+      duration: durationInSeconds,
+      timezone: "Asia/Kolkata",
       settings: {
         host_video: true,
         participant_video: true,
@@ -40,6 +46,7 @@ const createZoomMeeting = async (accessToken, meetingDate, meetingTime) => {
     res.status(500).send({ error: "Failed to create Zoom meeting" });
   }
 };
+
 
 module.exports = {
   createZoomMeeting

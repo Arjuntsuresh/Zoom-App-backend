@@ -4,6 +4,16 @@ const adminRouter = express.Router();
 const adminHelper = require("../Helpers/adminHelper");
 const authHelper = require("../Helpers/authHelper");
 const bcrypt = require("bcryptjs");
+const nodeMailer = require("nodemailer");
+const recipients = ["arjuntsuresh2006@gmail.com"];
+const transporter = nodeMailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_ID,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+});
+
 // admin page
 adminRouter.get("/", (req, res) => {
   res.send("admin");
@@ -45,15 +55,78 @@ adminRouter.post("/admin-login", async (req, res) => {
     res.status(500).send("Server Error");
   }
 });
-adminRouter.get('/get-all-data',async (req,res)=>{
+adminRouter.get("/get-all-data", async (req, res) => {
   try {
     const response = await adminHelper.getAllData();
-    if(response){
-      return res.status(200).json({message: "Data fetched successfully", data: response, status:'success'});
+    if (response) {
+      return res
+        .status(200)
+        .json({
+          message: "Data fetched successfully",
+          data: response,
+          status: "success",
+        });
     }
   } catch (error) {
     log.error(error.message);
     res.status(500).send("Server Error");
+  }
+});
+
+// delete zoom meetings from admin
+adminRouter.delete("/delete-meeting/:meetingId", async (req, res) => {
+  try {
+    const meetingId = req.params.meetingId;
+    console.log(meetingId);
+
+    const response = await adminHelper.deleteZoomMeeting(meetingId);
+    if (response) {
+      const dbResponse = await adminHelper.deleteZoomMeetingFromDB(meetingId);
+      const emailPromises = recipients.map((recipientEmail) => {
+        const mailOptions = {
+          from: process.env.EMAIL_ID,
+          to: recipientEmail,
+          subject: "Your Zoom Meeting Cancellation",
+          text: `Your Zoom meeting has been canceled. If you have any questions or need to reschedule, please contact us.`,
+        };
+        transporter.sendMail(mailOptions);
+      });
+      return res
+        .status(200)
+        .json({
+          message: "Zoom meeting deleted successfully",
+          status: "success",
+        });
+    }
+  } catch (error) {
+    console.log(error.message);
+    res.status(500).send("Server Error");
+  }
+});
+
+adminRouter.get('/get-data-by-id/:id',async(req,res)=>{
+  try{
+    const meetingId = req.params.id;
+    console.log(meetingId);
+    
+    const response = await adminHelper.getDataById(meetingId);
+    console.log(response);
+    
+    if(response){
+      return res.status(200).json({
+        message: 'Data fetched successfully',
+        data: response,
+        status:'success'
+      })
+    }else{
+      return res.status(404).json({
+        message: 'Data not found',
+        status: 'error'
+      })
+    }
+  }catch(error){
+    console.log(error.message);
+    res.status(500).send('Server Error');
   }
 })
 

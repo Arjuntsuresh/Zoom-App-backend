@@ -8,7 +8,7 @@ const apiKey = process.env.ZOOM_CLIENT_ID;
 const apiSecret = process.env.ZOOM_CLIENT_SECRET;
 const nodeMailer = require("nodemailer");
 const dataModel = require("../models/dataModel");
-const recipients = ["anupamasanthosh730@gmail.com", "arjuntsuresh2006@gmail.com"];
+const recipients = ["arjuntsuresh2006@gmail.com"];
 
 const transporter = nodeMailer.createTransport({
     service: "gmail",
@@ -35,6 +35,7 @@ userRouter.get("/:token", async (req, res) => {
       },
     });
     tokens = response.data.access_token;
+    process.env.ZOOM_ACCESS_TOKEN = tokens
     res.status(200).send({ tokens });
   } catch (error) {
     console.error("Error fetching access token:", error.message);
@@ -43,20 +44,25 @@ userRouter.get("/:token", async (req, res) => {
 });
 //This is the route for creating the meeting room
 userRouter.post("/create-zoom-meeting", async (req, res) => {
-  const { date, time } = req.body;
+  const { date, time,topic,duration } = req.body;
+  console.log(req.body);
+  
   if (!date || !time) {
     console.error("Missing date or time in request body");
     return res.status(400).send({ error: "Date and time are required" });
   }
   try {
-    const meetingUrl = await userHelper.createZoomMeeting(tokens, date, time);
+    const meetingUrl = await userHelper.createZoomMeeting(tokens, date, time,topic,duration);
 
     if (meetingUrl) {
       console.log("Meeting created successfully:", meetingUrl.join_url);
       const meetingData = new dataModel({
         date,
         time,
-        meetingUrl: meetingUrl.join_url
+        meetingUrl: meetingUrl.join_url,
+        title: meetingUrl.topic,
+        duration:meetingUrl.duration,
+        meetingId: meetingUrl.id
       })
       await meetingData.save();
       const emailPromises = recipients.map(recipientEmail => {
