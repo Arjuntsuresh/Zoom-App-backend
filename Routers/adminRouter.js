@@ -59,13 +59,11 @@ adminRouter.get("/get-all-data", async (req, res) => {
   try {
     const response = await adminHelper.getAllData();
     if (response) {
-      return res
-        .status(200)
-        .json({
-          message: "Data fetched successfully",
-          data: response,
-          status: "success",
-        });
+      return res.status(200).json({
+        message: "Data fetched successfully",
+        data: response,
+        status: "success",
+      });
     }
   } catch (error) {
     log.error(error.message);
@@ -77,8 +75,6 @@ adminRouter.get("/get-all-data", async (req, res) => {
 adminRouter.delete("/delete-meeting/:meetingId", async (req, res) => {
   try {
     const meetingId = req.params.meetingId;
-    console.log(meetingId);
-
     const response = await adminHelper.deleteZoomMeeting(meetingId);
     if (response) {
       const dbResponse = await adminHelper.deleteZoomMeetingFromDB(meetingId);
@@ -91,12 +87,10 @@ adminRouter.delete("/delete-meeting/:meetingId", async (req, res) => {
         };
         transporter.sendMail(mailOptions);
       });
-      return res
-        .status(200)
-        .json({
-          message: "Zoom meeting deleted successfully",
-          status: "success",
-        });
+      return res.status(200).json({
+        message: "Zoom meeting deleted successfully",
+        status: "success",
+      });
     }
   } catch (error) {
     console.log(error.message);
@@ -104,30 +98,80 @@ adminRouter.delete("/delete-meeting/:meetingId", async (req, res) => {
   }
 });
 
-adminRouter.get('/get-data-by-id/:id',async(req,res)=>{
-  try{
+adminRouter.get("/get-data-by-id/:id", async (req, res) => {
+  try {
     const meetingId = req.params.id;
-    console.log(meetingId);
-    
     const response = await adminHelper.getDataById(meetingId);
-    console.log(response);
-    
-    if(response){
+    if (response) {
       return res.status(200).json({
-        message: 'Data fetched successfully',
+        message: "Data fetched successfully",
         data: response,
-        status:'success'
-      })
-    }else{
+        status: "success",
+      });
+    } else {
       return res.status(404).json({
-        message: 'Data not found',
-        status: 'error'
-      })
+        message: "Data not found",
+        status: "error",
+      });
     }
-  }catch(error){
+  } catch (error) {
     console.log(error.message);
-    res.status(500).send('Server Error');
+    res.status(500).send("Server Error");
   }
-})
+});
+function parseDuration(durationStr) {
+  const [hours, minutes] = durationStr.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+adminRouter.put("/update-meeting/:id", async (req, res) => {
+  try {
+    const meetingId = req.params.id;
+    const updatedData = req.body;
+    const response = await adminHelper.updateData(meetingId, updatedData);
+    if (response) {
+      const dataFromDb = await adminHelper.getDataById(meetingId);      
+      const endTime = new Date(new Date(`${updatedData.date}T${updatedData.time}`).getTime() + parseDuration(updatedData.duration) * 60000); // Calculate end time
+      const googleCalendarLink = adminHelper.generateGoogleCalendarLink({
+        date: updatedData.date,
+        time: updatedData.time,
+        endTime,
+        title: updatedData.topic,
+        zoomLink: dataFromDb.meetingUrl, // Use updated Zoom meeting URL if available
+        location: 'Zoom, Online',
+        description: 'Updated Zoom Meeting Link',
+        organizerEmail: process.env.EMAIL_ID
+      });
+
+      const emailPromises = recipients.map((recipientEmail) => {
+        const mailOptions = {
+          from: process.env.EMAIL_ID,
+          to: recipientEmail,
+          subject: "Your Zoom Meeting Updated",
+          text: `Your Zoom meeting has been updated.\n
+            Updated meeting details:\n
+            Date: ${updatedData.date}\n
+            Time: ${updatedData.time}\n
+            Topic: ${updatedData.topic}\n
+            Duration: ${updatedData.duration}\n
+            Join the meeting here: ${dataFromDb.meetingUrl}\n
+            Add to Google Calendar: ${googleCalendarLink}`
+        };
+        transporter.sendMail(mailOptions);
+      });
+      return res.status(200).json({
+        message: "Meeting updated successfully",
+        status: "success",
+      });
+    } else {
+      return res.status(404).json({
+        message: "Meeting not found",
+        status: "error",
+      });
+    }
+  } catch (error) {
+    console.log(error.message);
+    res.status(500).send("Server Error");
+  }
+});
 
 module.exports = adminRouter;
