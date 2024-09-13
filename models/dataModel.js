@@ -24,6 +24,10 @@ const dataSchema  = new mongoose.Schema({
     meetingId:{
         type:String,
         required:true
+    },
+    email:{
+        type:Array,
+        required:true
     }
 });
 

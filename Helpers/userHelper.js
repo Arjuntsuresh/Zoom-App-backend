@@ -1,6 +1,8 @@
 const axios = require("axios");
 require("dotenv").config();
-
+const studentModel = require('../models/studentModel');
+const mongoose = require('mongoose');
+const dataModel = require("../models/dataModel");
 const durationToSeconds = (duration) => {
   const [hours, minutes] = duration.split(':').map(Number);
   return (hours * 3600) + (minutes * 60);
@@ -44,27 +46,42 @@ const createZoomMeeting = async (accessToken, meetingDate, meetingTime,topic,dur
     res.status(500).send({ error: "Failed to create Zoom meeting" });
   }
 };
-function convertToGoogleCalendarDate(dateObj) {
-  // Convert the Date object to ISO string and format for Google Calendar
-  return dateObj.toISOString().replace(/-|:|\.\d\d\d/g, ""); // Convert to 'YYYYMMDDTHHmmssZ' format
+function convertToGoogleCalendarDate(dateObj, timeZone) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).format(dateObj).replace(/-|:|\s/g, '').replace(',', 'T'); 
 }
+
+function calculateEndTime(startTime, duration, timeZone) {
+  const [hours, minutes] = duration.split(':').map(Number);
+  const endTime = new Date(startTime);
+  endTime.setHours(endTime.getHours() + hours);
+  endTime.setMinutes(endTime.getMinutes() + minutes);
+  return convertToGoogleCalendarDate(endTime, timeZone); 
+}
+
 function generateGoogleCalendarLink(meeting) {
   const baseUrl = 'https://calendar.google.com/calendar/event?action=TEMPLATE';
 
-  // Convert start and end times to Google Calendar format
-  const startDateTime = convertToGoogleCalendarDate(new Date(`${meeting.date}T${meeting.time}:00Z`));
-  const endDateTime = convertToGoogleCalendarDate(meeting.endTime); // Pass a Date object directly for endTime
-
-  // Prepare URL parameters
+  const startDateTime = convertToGoogleCalendarDate(new Date(`${meeting.date}T${meeting.time}`), meeting.timeZone);
+ const endDateTime = calculateEndTime(new Date(`${meeting.date}T${meeting.time}`), meeting.duration, meeting.timeZone);
+ // Prepare URL parameters
   const params = new URLSearchParams({
-    text: meeting.title, // Event title
-    dates: `${startDateTime}/${endDateTime}`, // Event start and end times
-    details: `${meeting.description}\nJoin the meeting here: ${meeting.zoomLink}`, // Event description
-    location: meeting.location, // Event location (Zoom)
-    tmsrc: meeting.organizerEmail // Organizer's email
+    text: meeting.title,
+    dates: `${startDateTime}/${endDateTime}`, 
+    details: `${meeting.description}\nJoin the meeting here: ${meeting.zoomLink}`, 
+    location: meeting.location, 
+    tmsrc: meeting.organizerEmail, 
+    ctz: meeting.timeZone || 'Asia/Kolkata',
   });
-
-  return `${baseUrl}&${params.toString()}`; // Generate the complete Google Calendar link
+  return `${baseUrl}&${params.toString()}`;
 }
 
 function parseDuration(durationStr) {
@@ -72,8 +89,33 @@ function parseDuration(durationStr) {
   return hours * 60 + minutes;
 }
 
+const findStudent = async (email) => {
+  try {
+    const response = await studentModel.findOne({ email: email });
+    return response;
+  } catch (error) {
+    console.log(error);
+  }
+};
+const findStudentDataFromDataModel = async (email) =>{
+  try {
+    const results = await dataModel.find({ email: email });
+    const studentData = results.find(result => result.email.includes(email));
+    // console.log(studentData);
+    
+    if (studentData) {
+      return studentData;
+    } else {
+      throw new Error('No student data found for the provided email.');
+    }
+  }catch (error) {
+    console.log(error);
+  }
+}
 module.exports = {
   createZoomMeeting,
   generateGoogleCalendarLink,
   parseDuration,
+  findStudent,
+  findStudentDataFromDataModel,
 };

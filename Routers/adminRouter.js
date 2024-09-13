@@ -119,10 +119,6 @@ adminRouter.get("/get-data-by-id/:id", async (req, res) => {
     res.status(500).send("Server Error");
   }
 });
-function parseDuration(durationStr) {
-  const [hours, minutes] = durationStr.split(':').map(Number);
-  return hours * 60 + minutes;
-}
 adminRouter.put("/update-meeting/:id", async (req, res) => {
   try {
     const meetingId = req.params.id;
@@ -130,16 +126,17 @@ adminRouter.put("/update-meeting/:id", async (req, res) => {
     const response = await adminHelper.updateData(meetingId, updatedData);
     if (response) {
       const dataFromDb = await adminHelper.getDataById(meetingId);      
-      const endTime = new Date(new Date(`${updatedData.date}T${updatedData.time}`).getTime() + parseDuration(updatedData.duration) * 60000); // Calculate end time
+     const duration = updatedData.duration;
       const googleCalendarLink = adminHelper.generateGoogleCalendarLink({
         date: updatedData.date,
         time: updatedData.time,
-        endTime,
+        duration,
         title: updatedData.topic,
-        zoomLink: dataFromDb.meetingUrl, // Use updated Zoom meeting URL if available
+        zoomLink: dataFromDb.meetingUrl,
         location: 'Zoom, Online',
         description: 'Updated Zoom Meeting Link',
-        organizerEmail: process.env.EMAIL_ID
+        organizerEmail: process.env.EMAIL_ID,
+        timeZone: 'Asia/Kolkata'
       });
 
       const emailPromises = recipients.map((recipientEmail) => {

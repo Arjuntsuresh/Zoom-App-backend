@@ -2,8 +2,8 @@ require("dotenv").config();
 const adminDB = require("../models/adminModel");
 const dataDB = require("../models/dataModel");
 const mongoose = require("mongoose");
-const axios = require('axios');
-const authHelper = require('../Helpers/authHelper');
+const axios = require("axios");
+const authHelper = require("../Helpers/authHelper");
 //find the admin from database.
 const findAdmin = async (email) => {
   try {
@@ -35,7 +35,7 @@ const deleteZoomMeeting = async (id) => {
         "Content-Type": "application/json",
       },
     });
-    console.log("Zoom meeting deleted successfully:",success);
+    console.log("Zoom meeting deleted successfully:", success);
     return success;
   } catch (error) {
     console.log(error);
@@ -47,29 +47,26 @@ const deleteZoomMeetingFromDB = async (meetingId) => {
     console.log("Zoom meeting deleted from database successfully:", response);
     return response;
   } catch (error) {
-    console.log("db error",error);
-    
+    console.log("db error", error);
   }
-}
+};
 
-const getDataById = async (id) =>{
+const getDataById = async (id) => {
   try {
-    const response = await dataDB.findOne({meetingId:id});    
+    const response = await dataDB.findOne({ meetingId: id });
     return response;
   } catch (error) {
     console.log(error);
   }
-}
-const durationToSeconds = (duration) => {
-  const [hours, minutes] = duration.split(':').map(Number);
-  return (hours * 3600) + (minutes * 60);
 };
-const updateData= async (id, updatedData) =>{
+const durationToSeconds = (duration) => {
+  const [hours, minutes] = duration.split(":").map(Number);
+  return hours * 3600 + minutes * 60;
+};
+const updateData = async (id, updatedData) => {
   try {
-    const {date,time,topic,duration} = updatedData;
-    const meetingDateTime = new Date(
-      `${date}T${time}:00Z`
-    ).toISOString();
+    const { date, time, topic, duration } = updatedData;
+    const meetingDateTime = new Date(`${date}T${time}:00Z`).toISOString();
     const durationInSeconds = durationToSeconds(duration);
     // const tokenGenerator = await authHelper.getAccessToken();
     let accessToken = process.env.ZOOM_ACCESS_TOKEN;
@@ -80,7 +77,7 @@ const updateData= async (id, updatedData) =>{
       "Content-Type": "application/json",
     };
     const meetingDetails = {
-      topic:topic,
+      topic: topic,
       type: 2,
       start_time: meetingDateTime,
       duration: durationInSeconds,
@@ -96,50 +93,72 @@ const updateData= async (id, updatedData) =>{
     const response = await axios.patch(url, meetingDetails, {
       headers: headers,
     });
-    if(response.status === 204) {
-      console.log('Meeting updated successfully:', response);
+    if (response.status === 204) {
+      console.log("Meeting updated successfully:", response);
       const updatedData = {
-        date:date,
+        date: date,
         time: time,
         title: topic,
         duration: durationInSeconds,
       };
       const result = await dataDB.findOneAndUpdate(
-        { meetingId: id }, 
-        updatedData,              
-        { new: true }            
+        { meetingId: id },
+        updatedData,
+        { new: true }
       );
     }
     return response;
   } catch (error) {
-     console.log(error);
-     return false;
+    console.log(error);
+    return false;
   }
+};
+function convertToGoogleCalendarDate(dateObj, timeZone) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+    .format(dateObj)
+    .replace(/-|:|\s/g, "")
+    .replace(",", "T");
 }
-function convertToGoogleCalendarDate(dateObj) {
-  // Convert the Date object to ISO string and format for Google Calendar
-  return dateObj.toISOString().replace(/-|:|\.\d\d\d/g, ""); // Convert to 'YYYYMMDDTHHmmssZ' format
+
+function calculateEndTime(startTime, duration, timeZone) {
+  const [hours, minutes] = duration.split(":").map(Number);
+  const endTime = new Date(startTime);
+  endTime.setHours(endTime.getHours() + hours);
+  endTime.setMinutes(endTime.getMinutes() + minutes);
+  return convertToGoogleCalendarDate(endTime, timeZone);
 }
 
 function generateGoogleCalendarLink(meeting) {
-  const baseUrl = 'https://calendar.google.com/calendar/event?action=TEMPLATE';
-
-  // Convert start and end times to Google Calendar format
-  const startDateTime = convertToGoogleCalendarDate(new Date(`${meeting.date}T${meeting.time}:00Z`));
-  const endDateTime = convertToGoogleCalendarDate(meeting.endTime);
-
-  // Prepare URL parameters
+  const baseUrl = "https://calendar.google.com/calendar/event?action=TEMPLATE";
+  const startDateTime = convertToGoogleCalendarDate(
+    new Date(`${meeting.date}T${meeting.time}`),
+    meeting.timeZone
+  );
+  const endDateTime = calculateEndTime(
+    new Date(`${meeting.date}T${meeting.time}`),
+    meeting.duration,
+    meeting.timeZone
+  );
   const params = new URLSearchParams({
-    text: meeting.title, // Event title
-    dates: `${startDateTime}/${endDateTime}`, // Event start and end times
-    details: `${meeting.description}\nJoin the meeting here: ${meeting.zoomLink}`, // Event description
-    location: meeting.location, // Event location (Zoom)
-    tmsrc: process.env.EMAIL_ID // Organizer's email
+    text: meeting.title,
+    dates: `${startDateTime}/${endDateTime}`,
+    details: `${meeting.description}\nJoin the meeting here: ${meeting.zoomLink}`,
+    location: meeting.location,
+    tmsrc: process.env.EMAIL_ID,
+    ctz: meeting.timeZone || "Asia/Kolkata",
   });
 
-  return `${baseUrl}&${params.toString()}`; // Generate the complete Google Calendar link
+  return `${baseUrl}&${params.toString()}`;
 }
-
 
 module.exports = {
   findAdmin,

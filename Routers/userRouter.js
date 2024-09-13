@@ -8,8 +8,9 @@ const apiKey = process.env.ZOOM_CLIENT_ID;
 const apiSecret = process.env.ZOOM_CLIENT_SECRET;
 const nodeMailer = require("nodemailer");
 const dataModel = require("../models/dataModel");
+const bcrypt = require("bcryptjs");
+const authHelper = require("../Helpers/authHelper");
 const recipients = ["arjuntsuresh2006@gmail.com"];
-
 const transporter = nodeMailer.createTransport({
   service: "gmail",
   auth: {
@@ -68,22 +69,20 @@ userRouter.post("/create-zoom-meeting", async (req, res) => {
         title: meetingUrl.topic,
         duration: meetingUrl.duration,
         meetingId: meetingUrl.id,
+        email:recipients
       });
-      await meetingData.save();
-      const parsedDuration = userHelper.parseDuration(duration);
-      // Generate Google Calendar link
-      const endTime = new Date(
-        new Date(`${date}T${time}`).getTime() + parsedDuration * 60000
-      ); // Calculate end time
+      await meetingData.save(); 
+      // Calculate end time
       const googleCalendarLink = userHelper.generateGoogleCalendarLink({
         date,
         time,
-        endTime,
+        duration,
         title: meetingUrl.topic,
         zoomLink: meetingUrl.join_url,
         location: "Zoom, Online",
         description: "Zoom Meeting Link",
         organizerEmail: process.env.EMAIL_ID,
+        timeZone: 'Asia/Kolkata'
       });
 
       const emailPromises = recipients.map((recipientEmail) => {
@@ -117,4 +116,54 @@ userRouter.post("/create-zoom-meeting", async (req, res) => {
   }
 });
 
+userRouter.post('/student-login',async (req,res)=>{
+  try {
+    const {email,password} = req.body;
+    if(!email || !password){
+      return res.status(400).json({ message: "Please enter all fields" });
+    }
+    const response = await userHelper.findStudent(email);
+    console.log(response);
+    
+    if(response){
+      const validatePassword = await bcrypt.compare(
+        password,
+        response.password
+      )
+    
+    if(!validatePassword){
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+    let jwtSecretKey = process.env.JWT_SECRET_KEY_STUDENT;
+    const token = await authHelper.tokenGenerator(jwtSecretKey,response._id);
+    if(!token){
+      return res.status(500).json({ message: "Failed to generate token" });
+    }
+    return res.status(200).json({ message: "Logged in successfully", token,status:'success',response });
+  }else{
+    return res.status(404).json({ message: "User not found" });
+  }
+  } catch (error) {
+    console.error("Error logging in student:", error.message);
+    return res.status(500).send({ error: "Failed to log in student" });
+  }
+})
+userRouter.get('/get-all-data/:email',async(req,res)=>{
+  try {
+    const email = req.params.email;
+    const response = await userHelper.findStudentDataFromDataModel(email);
+    console.log(response);
+    
+    if (response) {
+      return res.status(200).json({
+        message: "Data fetched successfully",
+        data: response,
+        status: "success",
+      });
+    }
+  } catch (error) {
+    log.error(error.message);
+    res.status(500).send("Server Error");
+  }
+})
 module.exports = userRouter;
